@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <SDL.h>
 #include <utils/glutil.h>
 #include <components/model.h>
+#include <third_party/glfw/include/GLFW/glfw3.h>
 
 #include "mpv.h"
 #include "mpv/libmpv/client.h"
@@ -12,23 +12,31 @@
 
 extern mesh_t *g_quad_mesh;
 
-static uint32_t wakeup_on_mpv_render_update, wakeup_on_mpv_events;
-
 static void *get_proc_address_mpv(void *fn_ctx, const char *name)
 {
-    return SDL_GL_GetProcAddress(name);
+    return glfwGetProcAddress(name);
 }
 
 static void on_mpv_events(void *ctx)
 {
-    SDL_Event event = {.type = wakeup_on_mpv_events};
-    SDL_PushEvent(&event);
+	c_mpv_t *self = ctx;
+	mpv_event *mp_event = mpv_wait_event(self->handle, 0);
+	if (mp_event->event_id == MPV_EVENT_NONE)
+		return;
+	if (mp_event->event_id == MPV_EVENT_LOG_MESSAGE) {
+		mpv_event_log_message *msg = mp_event->data;
+		if (strstr(msg->text, "DR image"))
+			printf("log: %s", msg->text);
+		return;
+	}
+	printf("event: %s\n", mpv_event_name(mp_event->event_id));
 }
 
 static void on_mpv_render_update(void *ctx)
 {
-    SDL_Event event = {.type = wakeup_on_mpv_render_update};
-    SDL_PushEvent(&event);
+	c_mpv_t *self = ctx;
+	printf("redraw\n");
+	self->redraw = true;
 }
 
 static int c_mpv_position_changed(c_mpv_t *self)
@@ -78,17 +86,9 @@ void c_mpv_init_gl(c_mpv_t *self)
 		exit(1);
 	}
 
-    wakeup_on_mpv_render_update = SDL_RegisterEvents(1);
-    wakeup_on_mpv_events = SDL_RegisterEvents(1);
-    if (wakeup_on_mpv_render_update == (uint32_t)-1 ||
-        wakeup_on_mpv_events == (uint32_t)-1)
-	{
-		exit(1);
-	}
+    mpv_set_wakeup_callback(self->handle, on_mpv_events, self);
 
-    mpv_set_wakeup_callback(self->handle, on_mpv_events, NULL);
-
-    mpv_render_context_set_update_callback(self->context, on_mpv_render_update, NULL);
+    mpv_render_context_set_update_callback(self->context, on_mpv_render_update, self);
 
 	if (self->queued[0])
 	{
@@ -99,10 +99,10 @@ void c_mpv_init_gl(c_mpv_t *self)
 
 c_mpv_t *c_mpv_new(char *filename)
 {
-	c_mpv_t *self = component_new("mpv");
+	c_mpv_t *self = component_new(ct_mpv);
 
 	self->texture = texture_new_2D(800, 354, TEX_INTERPOLATE,
-		buffer_new("color",	false, 4));
+		1, buffer_new("color", false, 4));
 
 	drawable_init(&self->draw, ref("framebuffer"));
 	drawable_add_group(&self->draw, ref("selectable"));
@@ -141,6 +141,8 @@ static void c_mpv_destroy(c_mpv_t *self)
 
 int c_mpv_draw(c_mpv_t *self)
 {
+	uint64_t flags;
+
 	if (!self->handle)
 	{
 		c_mpv_init_gl(self);
@@ -150,6 +152,12 @@ int c_mpv_draw(c_mpv_t *self)
 		return CONTINUE;
 	}
 	self->redraw = false;
+
+	flags = mpv_render_context_update(self->context);
+	if (!(flags & MPV_RENDER_UPDATE_FRAME))
+	{
+		return CONTINUE;
+	}
 
 	texture_target(self->texture, NULL, 0);
 
@@ -167,71 +175,31 @@ int c_mpv_draw(c_mpv_t *self)
 	return CONTINUE;
 }
 
-int32_t c_mpv_event(c_mpv_t *self, const SDL_Event *event)
+			/* TODO controls */
+		/* case SDL_KEYDOWN: */
+			/* if (event->key.keysym.sym == SDLK_SPACE) { */
+			/* 	const char *cmd_pause[] = {"cycle", "pause", NULL}; */
+			/* 	mpv_command_async(self->handle, 0, cmd_pause); */
+			/* } */
+			/* if (event->key.keysym.sym == SDLK_s) { */
+			/* 	const char *cmd_scr[] = {"screenshot-to-file", */
+			/* 		"screenshot.png", */
+			/* 		"window", */
+			/* 		NULL}; */
+			/* 	printf("attempting to save screenshot to %s\n", cmd_scr[1]); */
+			/* 	mpv_command_async(self->handle, 0, cmd_scr); */
+			/* } */
+			/* break; */
+			/* TODO handle logs */
+
+void ct_mpv(ct_t *self)
 {
-	if (!self->handle)
-	{
-		return CONTINUE;
-	}
-	switch (event->type) {
-		case SDL_WINDOWEVENT:
-			if (event->window.event == SDL_WINDOWEVENT_EXPOSED)
-			{
-				self->redraw = true;
-			}
-			break;
-		case SDL_KEYDOWN:
-			if (event->key.keysym.sym == SDLK_SPACE) {
-				const char *cmd_pause[] = {"cycle", "pause", NULL};
-				mpv_command_async(self->handle, 0, cmd_pause);
-			}
-			if (event->key.keysym.sym == SDLK_s) {
-				const char *cmd_scr[] = {"screenshot-to-file",
-					"screenshot.png",
-					"window",
-					NULL};
-				printf("attempting to save screenshot to %s\n", cmd_scr[1]);
-				mpv_command_async(self->handle, 0, cmd_scr);
-			}
-			break;
-		default:	
-			if (event->type == wakeup_on_mpv_render_update)
-			{
-				uint64_t flags = mpv_render_context_update(self->context);
-				if (flags & MPV_RENDER_UPDATE_FRAME)
-				{
-					self->redraw = true;
-				}
-				return STOP;
-			}
-			if (event->type == wakeup_on_mpv_events)
-			{
-				while (1) {
-					mpv_event *mp_event = mpv_wait_event(self->handle, 0);
-					if (mp_event->event_id == MPV_EVENT_NONE)
-						break;
-					if (mp_event->event_id == MPV_EVENT_LOG_MESSAGE) {
-						mpv_event_log_message *msg = mp_event->data;
-						if (strstr(msg->text, "DR image"))
-							printf("log: %s", msg->text);
-						continue;
-					}
-					printf("event: %s\n", mpv_event_name(mp_event->event_id));
-				}
-				return STOP;
-			}
-	}
-	return CONTINUE;
-}
+	ct_init(self, "mpv", sizeof(c_mpv_t));
+	ct_set_destroy(self, (destroy_cb)c_mpv_destroy);
+	ct_add_dependency(self, ct_node);
 
-REG()
-{
-	ct_t *ct = ct_new("mpv", sizeof(c_mpv_t), c_mpv_init, c_mpv_destroy,
-	                  1, ref("node"));
+	ct_add_listener(self, WORLD, 11, ref("world_draw"), c_mpv_draw);
 
-	ct_listener(ct, WORLD, 11, sig("world_draw"), c_mpv_draw);
-	ct_listener(ct, WORLD, -1, sig("event_handle"), c_mpv_event);
-
-	ct_listener(ct, ENTITY, 0, ref("node_changed"), c_mpv_position_changed);
+	ct_add_listener(self, ENTITY, 0, ref("node_changed"), c_mpv_position_changed);
 }
 

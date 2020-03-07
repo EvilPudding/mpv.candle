@@ -25,16 +25,17 @@ OBJS_REL = $(SAUCES_OBJ) $(patsubst %.c, $(DIR)/%.o, $(SRCS))
 OBJS_DEB = $(SAUCES_OBJ) $(patsubst %.c, $(DIR)/%.debug.o, $(SRCS))
 OBJS_EMS = $(SAUCES_EMS_OBJ) $(patsubst %.c, $(DIR)/%.emscripten.o, $(SRCS))
 
-CFLAGS = $(shell pkg-config sdl2 --cflags) -I../candle -Wuninitialized $(PARENTCFLAGS) \
+CFLAGS = -I../candle -Wuninitialized $(PARENTCFLAGS)
 
 CFLAGS_REL = $(CFLAGS) -O3
 
 CFLAGS_DEB = $(CFLAGS) -g3
 
-CFLAGS_EMS = -Iinclude $(CFLAGS) -O2 \
-			 -s EMULATE_FUNCTION_POINTER_CASTS=1 \
-			 -s FULL_ES3=1 -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
-			 -s SAFE_HEAP=1 -s WASM=1
+CFLAGS_EMS = -Iinclude $(CFLAGS) -s USE_GLFW=3 -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 \
+		      -s FULL_ES3=1 -s EMULATE_FUNCTION_POINTER_CASTS=1 \
+		      -s WASM=1 -s ASSERTIONS=1 -s SAFE_HEAP=1 \
+		      -s WASM_MEM_MAX=2GB -O3
+
 
 ##############################################################################
 
