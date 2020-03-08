@@ -10,6 +10,8 @@
 #include "mpv/libmpv/client.h"
 #include "mpv/libmpv/render_gl.h"
 
+#include <utils/nk.h>
+
 extern mesh_t *g_quad_mesh;
 
 static void *get_proc_address_mpv(void *fn_ctx, const char *name)
@@ -175,22 +177,15 @@ int c_mpv_draw(c_mpv_t *self)
 	return CONTINUE;
 }
 
-			/* TODO controls */
-		/* case SDL_KEYDOWN: */
-			/* if (event->key.keysym.sym == SDLK_SPACE) { */
-			/* 	const char *cmd_pause[] = {"cycle", "pause", NULL}; */
-			/* 	mpv_command_async(self->handle, 0, cmd_pause); */
-			/* } */
-			/* if (event->key.keysym.sym == SDLK_s) { */
-			/* 	const char *cmd_scr[] = {"screenshot-to-file", */
-			/* 		"screenshot.png", */
-			/* 		"window", */
-			/* 		NULL}; */
-			/* 	printf("attempting to save screenshot to %s\n", cmd_scr[1]); */
-			/* 	mpv_command_async(self->handle, 0, cmd_scr); */
-			/* } */
-			/* break; */
-			/* TODO handle logs */
+int c_mpv_menu(c_mpv_t *self, void *ctx)
+{
+	if(nk_button_label(ctx, "Play"))
+	{
+		const char *cmd_pause[] = {"cycle", "pause", NULL};
+		mpv_command_async(self->handle, 0, cmd_pause);
+	}
+	return CONTINUE;
+}
 
 void ct_mpv(ct_t *self)
 {
@@ -201,5 +196,7 @@ void ct_mpv(ct_t *self)
 	ct_add_listener(self, WORLD, 11, ref("world_draw"), c_mpv_draw);
 
 	ct_add_listener(self, ENTITY, 0, ref("node_changed"), c_mpv_position_changed);
+
+	ct_add_listener(self, WORLD, 0, ref("component_menu"), c_mpv_menu);
 }
 
