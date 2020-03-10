@@ -37,7 +37,6 @@ static void on_mpv_events(void *ctx)
 static void on_mpv_render_update(void *ctx)
 {
 	c_mpv_t *self = ctx;
-	printf("redraw\n");
 	self->redraw = true;
 }
 

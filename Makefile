@@ -9,7 +9,21 @@ DIR = build
 
 SRCS = mpv.c
 
-DEPS = $(shell pkg-config mpv --libs) mpv.candle/mpv/build/libmpv.so
+MPV_OPTS = --disable-lua --disable-javascript --disable-libass \
+		   --disable-rubberband --disable-vapoursynth --disable-libarchive --enable-dvbin \
+		   --disable-sdl2-gamepad --disable-sdl2-audio --enable-openal \
+		   --disable-sdl2-video --disable-drm --disable-drmprime --disable-gbm \
+		   --disable-wayland-scanner --disable-wayland-protocols --disable-wayland \
+		   --disable-x11 --disable-xv --disable-gl-cocoa --disable-gl-x11 --disable-egl15 \
+		   --disable-egl-x11 --disable-egl-drm --disable-gl-wayland --disable-gl-win32 \
+		   --disable-gl-dxinterop --disable-egl-angle --disable-egl-angle-lib \
+		   --disable-egl-angle-win32 --disable-vdpau --disable-vdpau-gl-x11 \
+		   --disable-vaapi --disable-vaapi-x11 --disable-vaapi-wayland --disable-vaapi-drm \
+		   --disable-vaapi-x-egl --disable-caca --disable-jpeg --disable-direct3d \
+		   --disable-shaderc --disable-spirv-cross --disable-libplacebo --disable-vulkan \
+		   --enable-libmpv-shared 
+
+DEPS = mpv.candle/mpv/build/libmpv.so
 
 DEPS_EMS =
 
@@ -51,8 +65,8 @@ $(DIR)/%.o: %.c
 mpv/build/libmpv.so:
 	cd mpv && \
 	./bootstrap.py && \
-	./waf --enable-libmpv-shared configure && \
-	./waf --enable-libmpv-shared
+	./waf configure $(MPV_OPTS) && \
+	./waf $(MPV_OPTS)
 
 ##############################################################################
 
@@ -92,6 +106,7 @@ init:
 ##############################################################################
 
 clean:
+	rm -fr mpv/build
 	rm -fr $(DIR)
 
 # vim:ft=make
