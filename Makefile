@@ -11,7 +11,7 @@ SRCS = mpv.c
 
 MPV_OPTS = --disable-lua --disable-javascript --disable-libass \
 		   --disable-rubberband --disable-vapoursynth --disable-libarchive --enable-dvbin \
-		   --disable-sdl2-gamepad --disable-sdl2-audio --enable-openal \
+		   --disable-sdl2-gamepad  \
 		   --disable-sdl2-video --disable-drm --disable-drmprime --disable-gbm \
 		   --disable-wayland-scanner --disable-wayland-protocols --disable-wayland \
 		   --disable-x11 --disable-xv --disable-gl-cocoa --disable-gl-x11 --disable-egl15 \
@@ -27,17 +27,9 @@ DEPS = mpv.candle/mpv/build/libmpv.so
 
 DEPS_EMS =
 
-SAUCES =
-
-SAUCES_SRC = $(patsubst %, $(DIR)/%.sauce.c, $(SAUCES))
-SAUCES_OBJ = $(patsubst $(DIR)/%.c, $(DIR)/%.o, $(SAUCES_SRC))
-
-SAUCES_EMS_SRC  = $(patsubst %, $(DIR)/%.emscripten_sauce.c, $(SAUCES))
-SAUCES_EMS_OBJ = $(patsubst $(DIR)/%.c, $(DIR)/%.o, $(SAUCES_EMS_SRC))
-
-OBJS_REL = $(SAUCES_OBJ) $(patsubst %.c, $(DIR)/%.o, $(SRCS))
-OBJS_DEB = $(SAUCES_OBJ) $(patsubst %.c, $(DIR)/%.debug.o, $(SRCS))
-OBJS_EMS = $(SAUCES_EMS_OBJ) $(patsubst %.c, $(DIR)/%.emscripten.o, $(SRCS))
+OBJS_REL = $(patsubst %.c, $(DIR)/%.o, $(SRCS))
+OBJS_DEB = $(patsubst %.c, $(DIR)/%.debug.o, $(SRCS))
+OBJS_EMS = $(patsubst %.c, $(DIR)/%.emscripten.o, $(SRCS))
 
 CFLAGS = -I../candle -Wuninitialized $(PARENTCFLAGS)
 
@@ -53,8 +45,10 @@ CFLAGS_EMS = -Iinclude $(CFLAGS) -s USE_GLFW=3 -s ALLOW_MEMORY_GROWTH=1 -s USE_W
 
 ##############################################################################
 
-all: $(DIR)/export.a mpv/build/libmpv.so
-	echo -n $(DEPS) > $(DIR)/deps
+all: $(DIR)/libs mpv/build/libmpv.so
+
+$(DIR)/libs: $(DIR)/export.a
+	echo $(DEPS) mpv.candle/$< > $@
 
 $(DIR)/export.a: init $(OBJS_REL)
 	$(AR) rs build/export.a $(OBJS_REL)
@@ -70,13 +64,10 @@ mpv/build/libmpv.so:
 
 ##############################################################################
 
-$(DIR)/%.sauce.c: %
-	xxd -i $< > $@
+debug: $(DIR)/libs_debug mpv/build/libmpv.so
 
-##############################################################################
-
-debug: $(DIR)/export_debug.a
-	echo -n $(DEPS) > $(DIR)/deps
+$(DIR)/libs_debug: $(DIR)/export_debug.a
+	echo $(DEPS) mpv.candle/$< > $@
 
 $(DIR)/export_debug.a: init $(OBJS_DEB)
 	$(AR) rs build/export_debug.a $(OBJS_DEB)
@@ -86,8 +77,10 @@ $(DIR)/%.debug.o: %.c
 
 ##############################################################################
 
-emscripten: $(DIR)/export_emscripten.a
-	echo -n $(DEPS_EMS) > $(DIR)/deps
+emscripten: $(DIR)/libs_emscripten
+
+$(DIR)/libs_emscripten: $(DIR)/export_emscripten.a
+	echo $(DEPS_EMS) mpv.candle/$< > $@
 
 $(DIR)/export_emscripten.a: init $(OBJS_EMS)
 	emar rs build/export_emscripten.a $(OBJS_EMS)
