@@ -99,7 +99,7 @@ init:
 ##############################################################################
 
 clean:
-	rm -fr mpv/build
+	# rm -fr mpv/build
 	rm -fr $(DIR)
 
 # vim:ft=make
